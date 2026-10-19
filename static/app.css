@@ -1,0 +1,451 @@
+/* ==============================================================================
+   03 · UI/UX and Color Palette: Lazarus Dashboard
+   Strictly following doc/03-ui-ux-palette.md tokens and layout rules.
+   No gradients, no glassmorphism, no box-shadow, rectangular buttons (3px radius).
+   Warm paper, black ink, ruled lines, ember accent.
+   ============================================================================== */
+
+:root {
+  --paper: #F2EEE3;
+  --surface: #FAF8F1;
+  --rule: #D9D2BF;
+  --rule-strong: #8F8873;
+  --ink: #1C1B18;
+  --ink-2: #5A564B;
+  --ink-3: #6F6A5B;
+  --ember: #C8401A;
+  --ember-dark: #B03512;
+  --ember-tint: #F4D9CD;
+  --on-ember: #FFF8F0;
+  --ok: #2F5E36;
+  --ok-bg: #DEE9D6;
+  --warn: #7C5100;
+  --warn-bg: #F2E2B8;
+  --bad: #9C2418;
+  --bad-bg: #F1D3CC;
+  --info: #1F4F63;
+  --info-bg: #D5E3E9;
+  --console: #1E1D1A;
+  --console-text: #E6E0CF;
+  --console-ember: #F08A63;
+  --console-ok: #8FBF8A;
+  --sidebar: #1C1B18;
+  --sidebar-text: #E6E0CF;
+  --sidebar-muted: #A8A290;
+  --chart-amber: #B7791F;
+
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-data: 'IBM Plex Mono', 'Cascadia Code', Consolas, monospace;
+  --font-title: 'Fraunces', Georgia, serif;
+  --radius: 3px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+}
+
+.num {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sidebar */
+aside.sidebar {
+  width: 208px;
+  min-width: 208px;
+  background: var(--sidebar);
+  color: var(--sidebar-text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--ink);
+  min-height: 100vh;
+}
+
+.brand {
+  padding: 20px 16px;
+  border-bottom: 1px solid #2d2b27;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-chip {
+  background: var(--surface);
+  color: var(--ink);
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius);
+  font-family: var(--font-data);
+}
+
+.brand-title {
+  font-family: var(--font-title);
+  font-size: 20px;
+  color: #fff;
+}
+
+nav.nav-links {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease;
+}
+
+.nav-item:hover {
+  background: #2a2924;
+}
+
+.nav-item.active {
+  background: #272520;
+  border-left: 3px solid var(--ember);
+  color: #ffffff;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #2d2b27;
+  font-size: 11px;
+  color: var(--sidebar-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Main Area */
+main.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 1300px;
+  background: var(--paper);
+}
+
+header.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.page-title {
+  font-family: var(--font-title);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Cards & Layout */
+.page-container {
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
+/* KPI Row */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.kpi-val {
+  font-size: 36px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 6px 0;
+}
+
+.kpi-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* Invariants Card */
+.invariants-panel {
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px;
+}
+
+.invariants-violated {
+  border: 3px solid var(--bad) !important;
+}
+
+.violated-banner {
+  background: var(--bad);
+  color: var(--on-ember);
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+}
+
+.inv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.inv-row:last-child {
+  border-bottom: none;
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, transform 0.05s ease;
+  border: none;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+
+button.btn-primary {
+  background: var(--ember);
+  color: var(--on-ember);
+}
+
+button.btn-primary:hover {
+  background: var(--ember-dark);
+}
+
+button.btn-secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+}
+
+button.btn-secondary:hover {
+  background: var(--paper);
+}
+
+button.btn-danger {
+  background: var(--bad);
+  color: var(--on-ember);
+}
+
+button.btn-cold {
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid var(--info);
+}
+
+button.btn-sm {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.badge-ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.badge-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.badge-bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* Tables */
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+table.data-table th {
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  border-bottom: 2px solid var(--ink);
+}
+
+table.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
+
+table.data-table tr:hover td {
+  background: var(--ember-tint);
+}
+
+/* Event Console */
+.console-box {
+  background: var(--console);
+  color: var(--console-text);
+  font-family: var(--font-data);
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: var(--radius);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.console-line {
+  display: flex;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.console-ok {
+  color: var(--console-ok);
+}
+
+.console-bad {
+  color: var(--console-ember);
+}
+
+/* Toasts */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 232px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+}
+
+.toast {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-data);
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--ember);
+}
+
+/* Drawer */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 27, 24, 0.4);
+  z-index: 2000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: 480px;
+  background: var(--surface);
+  border-left: 2px solid var(--ink);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  box-shadow: none;
+}

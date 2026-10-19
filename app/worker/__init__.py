@@ -1,0 +1,3 @@
+"""
+Lazarus worker package marker.
+"""

@@ -1,0 +1,3 @@
+"""
+Lazarus package marker.
+"""

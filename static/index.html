@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lazarus · Reliable Asynchronous Job Runner</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/alpine.min.js" defer></script>
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  <script src="/static/app.js"></script>
+</head>
+<body x-data="lazarusApp">
+
+  <!-- Left Sidebar (03-ui-ux-palette.md §2.3) -->
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <span class="brand-chip">QUARK</span>
+        <span class="brand-title">Lazarus</span>
+      </div>
+      <nav class="nav-links">
+        <a class="nav-item" :class="{ 'active': activeTab === 'overview' }" @click="setTab('overview')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Overview
+        </a>
+        <a class="nav-item" :class="{ 'active': activeTab === 'workers' }" @click="setTab('workers')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          Workers
+        </a>
+        <a class="nav-item" :class="{ 'active': activeTab === 'jobs' }" @click="setTab('jobs')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+          Jobs
+        </a>
+        <a class="nav-item" :class="{ 'active': activeTab === 'dlq' }" @click="setTab('dlq')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+          Dead Letter Queue
+        </a>
+        <a class="nav-item" :class="{ 'active': activeTab === 'chaos' }" @click="setTab('chaos')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          Chaos Lab
+        </a>
+        <a class="nav-item" :class="{ 'active': activeTab === 'insights' }" @click="setTab('insights')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          Insights
+        </a>
+      </nav>
+    </div>
+    <div class="sidebar-footer">
+      <div>
+        <span :class="connected ? 'badge-ok' : 'badge-bad'" style="display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px;"></span>
+        <span x-text="connected ? 'connected' : 'no contact'"></span>
+      </div>
+      <div>Poll: <span class="num" x-text="lastRefresh"></span></div>
+    </div>
+  </aside>
+
+  <!-- Content Area -->
+  <main class="content-area">
+    <!-- Topbar (04-pages §2) -->
+    <header class="topbar">
+      <div class="page-title" x-text="activeTab.charAt(0).toUpperCase() + activeTab.slice(1)"></div>
+      <div class="topbar-right">
+        <!-- Fencing Badge -->
+        <span class="badge" :class="settings.fencing_enabled ? 'badge-ok' : 'badge-bad'" @click="toggleFencing" style="cursor:pointer;" title="Click to toggle fencing mode">
+          <span x-text="settings.fencing_enabled ? '● FENCING ON' : '✕ FENCING OFF (UNSAFE)'"></span>
+        </span>
+
+        <!-- Worker Count -->
+        <span class="badge badge-info num" x-text="workers.length + ' workers'"></span>
+
+        <!-- Reset Button -->
+        <button class="btn-danger btn-sm" @click="handleResetClick" x-text="resetStage === 0 ? 'Reset demo' : 'Confirm reset (3s)'"></button>
+      </div>
+    </header>
+
+    <!-- Page: Overview -->
+    <div class="page-container" x-show="activeTab === 'overview'">
+      <!-- 4 KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="card-label">Total</div>
+          <div class="kpi-val num" x-text="kpis.total"></div>
+          <div class="kpi-sub">all time</div>
+        </div>
+        <div class="kpi-card">
+          <div class="card-label">Processing</div>
+          <div class="kpi-val num" x-text="kpis.processing"></div>
+          <div class="kpi-sub num" x-text="kpis.total ? Math.round((kpis.processing/kpis.total)*100) + '% of total' : '0%'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="card-label">Retrying</div>
+          <div class="kpi-val num" x-text="kpis.retrying"></div>
+          <div class="kpi-sub num" x-text="kpis.total ? Math.round((kpis.retrying/kpis.total)*100) + '% of total' : '0%'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="card-label">Dead Letter Queue</div>
+          <div class="kpi-val num" x-text="kpis.dlq"></div>
+          <div class="kpi-sub num" x-text="kpis.total ? Math.round((kpis.dlq/kpis.total)*100) + '% of total' : '0%'"></div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
+        <!-- Left: Throughput & Events -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Counters Row -->
+          <div class="card" style="flex-direction:row; justify-content:space-between; flex-wrap:wrap;">
+            <div>
+              <div class="card-label">Stale writes rejected</div>
+              <div class="num" style="font-size:20px; font-weight:600;" x-text="counters.stale_writes_rejected || 0"></div>
+            </div>
+            <div>
+              <div class="card-label">Leases expired</div>
+              <div class="num" style="font-size:20px; font-weight:600;" x-text="counters.lease_expired || 0"></div>
+            </div>
+            <div>
+              <div class="card-label">Quarantined</div>
+              <div class="num" style="font-size:20px; font-weight:600;" x-text="counters.quarantined || 0"></div>
+            </div>
+            <div>
+              <div class="card-label">Retries avoided</div>
+              <div class="num" style="font-size:20px; font-weight:600;" x-text="counters.retries_avoided || 0"></div>
+            </div>
+          </div>
+
+          <!-- Console Event Feed -->
+          <div class="card" style="padding:12px;">
+            <div class="card-label" style="margin-bottom:8px;">Events Feed (Latest 15)</div>
+            <div class="console-box">
+              <template x-for="ev in events" :key="ev.at + ev.job_id">
+                <div class="console-line" :class="{ 'console-ok': ev.event === 'succeeded', 'console-bad': ev.event === 'failed' || ev.event === 'lease_expired' }">
+                  <span class="num" style="width:70px;" x-text="ev.at.substring(11, 19)"></span>
+                  <span style="width:130px; font-weight:600;" x-text="ev.event"></span>
+                  <span style="width:100px;" x-text="ev.job_type"></span>
+                  <span class="num" style="width:90px;" x-text="ev.worker || '—'"></span>
+                  <span style="color:var(--ink-3);" x-text="ev.job_id ? ev.job_id.substring(0,8) : ''"></span>
+                </div>
+              </template>
+              <div x-show="!events.length" style="color:var(--sidebar-muted);">No events yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Invariants Panel (03-ui-ux-palette.md §5) -->
+        <div class="invariants-panel" :class="{ 'invariants-violated': invariants.some(i => !i.ok) }">
+          <div x-show="invariants.some(i => !i.ok)" class="violated-banner">
+            ✕ INVARIANT VIOLATED
+          </div>
+          <div class="card-label" style="margin-bottom:12px;">Invariants (Live Proof)</div>
+          <template x-for="inv in invariants" :key="inv.id">
+            <div class="inv-row">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="badge num" :class="inv.ok ? 'badge-ok' : 'badge-bad'" x-text="inv.ok ? '✓' : '✕'"></span>
+                <span style="font-weight:500;" x-text="inv.name"></span>
+              </div>
+              <span class="num" style="font-size:13px;" x-text="inv.value"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page: Workers -->
+    <div class="page-container" x-show="activeTab === 'workers'">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="card-label">Supervisor worker pool</div>
+          <div style="color:var(--ink-2); font-size:13px;">Manage real OS processes, trigger Chaos primitives (Kill, Freeze).</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:13px; font-weight:500;">Scale:</span>
+          <button class="btn-secondary btn-sm" @click="scaleWorkers(-1)">−</button>
+          <span class="num" style="font-weight:700; width:20px; text-align:center;" x-text="settings.desired_workers"></span>
+          <button class="btn-secondary btn-sm" @click="scaleWorkers(1)">+</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Status</th>
+              <th>In Flight</th>
+              <th>Uptime</th>
+              <th>Last Heartbeat</th>
+              <th>PID</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="w in workers" :key="w.worker_id">
+              <tr>
+                <td class="num" style="font-weight:600;" x-text="w.worker_id"></td>
+                <td>
+                  <span class="badge" :class="{ 'badge-ok': w.status === 'healthy', 'badge-warn': w.status === 'frozen', 'badge-bad': w.status === 'dead' }" x-text="w.status"></span>
+                </td>
+                <td class="num" x-text="w.in_flight + ' / 4'"></td>
+                <td class="num" x-text="Math.floor(w.uptime_s / 60) + 'm ' + (w.uptime_s % 60) + 's'"></td>
+                <td class="num" x-text="w.last_seen_ms + ' ms ago'"></td>
+                <td class="num" x-text="w.pid"></td>
+                <td style="display:flex; gap:6px;">
+                  <button class="btn-danger btn-sm" @click="killWorker(w.worker_id)" :disabled="w.status === 'dead'">Kill</button>
+                  <button class="btn-cold btn-sm" @click="freezeWorker(w.worker_id)" :disabled="w.status === 'dead' || w.status === 'frozen'">Freeze</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!workers.length">
+              <td colspan="7" style="text-align:center; padding:24px; color:var(--ink-3);">No workers running.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Page: Jobs -->
+    <div class="page-container" x-show="activeTab === 'jobs'">
+      <!-- Enqueue Inline Form -->
+      <div class="card">
+        <div class="card-label">Enqueue Job (Idempotent submission)</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 2fr 1fr auto; gap:10px; align-items:end;">
+          <div>
+            <label style="font-size:11px; font-weight:600;">Tenant</label>
+            <input type="text" x-model="newJob.tenant_id" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:600;">Type</label>
+            <select x-model="newJob.type" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+              <option value="ledger_credit">ledger_credit</option>
+              <option value="flaky_webhook">flaky_webhook</option>
+              <option value="validate_order">validate_order</option>
+              <option value="legacy_sync">legacy_sync</option>
+              <option value="report_export">report_export</option>
+              <option value="poison_pill">poison_pill</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:600;">Payload JSON</label>
+            <input type="text" x-model="newJob.payload" style="width:100%; padding:6px; font-family:var(--font-data); border:1px solid var(--rule-strong); border-radius:3px;">
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:600;">Idempotency Key</label>
+            <input type="text" x-model="newJob.idempotency_key" placeholder="optional" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+          </div>
+          <button class="btn-primary" @click="submitEnqueue">Enqueue</button>
+        </div>
+      </div>
+
+      <!-- Jobs Table -->
+      <div class="card" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Tenant</th>
+              <th>Status</th>
+              <th>Attempts</th>
+              <th>Fence</th>
+              <th>Age</th>
+              <th>Error Class</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="j in jobsList" :key="j.id">
+              <tr @click="openJobDetail(j.id)" style="cursor:pointer;">
+                <td class="num" style="font-weight:600;" x-text="j.id.substring(0,8)"></td>
+                <td x-text="j.type"></td>
+                <td x-text="j.tenant_id"></td>
+                <td>
+                  <span class="badge" :class="{ 'badge-ok': j.status === 'succeeded', 'badge-warn': j.status === 'queued' && j.attempts > 0, 'badge-bad': j.status === 'dead' }" x-text="j.status"></span>
+                  <span x-show="j.quarantined" class="badge badge-bad" style="margin-left:4px;">QUARANTINED</span>
+                </td>
+                <td class="num" x-text="j.attempts + ' / ' + j.max_attempts"></td>
+                <td class="num" x-text="j.fence"></td>
+                <td class="num" x-text="j.created_at.substring(11,19)"></td>
+                <td x-text="j.error_class || '—'"></td>
+              </tr>
+            </template>
+            <tr x-show="!jobsList.length">
+              <td colspan="8" style="text-align:center; padding:24px; color:var(--ink-3);">No jobs found.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Page: DLQ -->
+    <div class="page-container" x-show="activeTab === 'dlq'">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div class="card-label">Dead Letter Queue</div>
+          <div style="color:var(--ink-2); font-size:13px;">Jobs that exhausted max attempts, encountered permanent failures, or were quarantined.</div>
+        </div>
+        <button class="btn-primary" @click="replayAllDLQ">Replay All</button>
+      </div>
+
+      <div class="card" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Tenant</th>
+              <th>Reason / Class</th>
+              <th>Attempts</th>
+              <th>Crash Count</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="j in jobsList" :key="j.id">
+              <tr>
+                <td class="num" style="font-weight:600;" x-text="j.id.substring(0,8)"></td>
+                <td x-text="j.type"></td>
+                <td x-text="j.tenant_id"></td>
+                <td>
+                  <span class="badge badge-bad" x-text="j.error_class"></span>
+                  <span x-show="j.quarantined" class="badge badge-bad">QUARANTINED</span>
+                  <div style="font-size:11px; color:var(--ink-2); margin-top:4px;" x-text="j.last_error"></div>
+                </td>
+                <td class="num" x-text="j.attempts"></td>
+                <td class="num" x-text="j.crash_count"></td>
+                <td>
+                  <button class="btn-secondary btn-sm" @click="replayJob(j.id)">Replay</button>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!jobsList.length">
+              <td colspan="7" style="text-align:center; padding:24px; color:var(--ink-3);">DLQ is empty. Nothing has permanently failed.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Page: Chaos Lab -->
+    <div class="page-container" x-show="activeTab === 'chaos'">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <!-- Left: Configuration & Safety Toggles -->
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="card">
+            <div class="card-label">Safety Toggles</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--rule);">
+              <div>
+                <div style="font-weight:600;">Fencing Mode</div>
+                <div style="font-size:12px; color:var(--ink-2);" x-text="settings.fencing_enabled ? 'Safe: transactions rollback on fence mismatch.' : 'Unsafe: this is the bug fencing prevents.'"></div>
+              </div>
+              <button class="btn-sm" :class="settings.fencing_enabled ? 'btn-primary' : 'btn-danger'" @click="toggleFencing" x-text="settings.fencing_enabled ? 'Fencing ON' : 'Fencing OFF'"></button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--rule);">
+              <div>
+                <div style="font-weight:600;">Simulate Downstream Outage</div>
+                <div style="font-size:12px; color:var(--ink-2);">Makes flaky_webhook 100% 503 to trigger circuit breaker.</div>
+              </div>
+              <button class="btn-sm" :class="settings.outage_flaky_webhook ? 'btn-danger' : 'btn-secondary'" @click="toggleOutage" x-text="settings.outage_flaky_webhook ? 'Outage ON' : 'Outage OFF'"></button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0;">
+              <div>
+                <div style="font-weight:600;">Inject Poison Pill Job</div>
+                <div style="font-size:12px; color:var(--ink-2);">Silently kills worker processes to test quarantine at threshold 3.</div>
+              </div>
+              <button class="btn-secondary btn-sm" @click="injectPoison">Inject 1 Poison</button>
+            </div>
+          </div>
+
+          <!-- Chaos Run Form -->
+          <div class="card">
+            <div class="card-label">Run Chaos Test Configuration</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div>
+                <label style="font-size:11px; font-weight:600;">Jobs count</label>
+                <input type="number" x-model.number="chaosRunConfig.jobs" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:600;">Tenants</label>
+                <input type="number" x-model.number="chaosRunConfig.tenants" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:600;">Jobs/sec</label>
+                <input type="number" x-model.number="chaosRunConfig.jobs_per_sec" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+              </div>
+              <div>
+                <label style="font-size:11px; font-weight:600;">Kill every (s)</label>
+                <input type="number" x-model.number="chaosRunConfig.kill_every_s" style="width:100%; padding:6px; border:1px solid var(--rule-strong); border-radius:3px;">
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+              <button class="btn-primary" @click="runChaos" :disabled="chaosLatest && chaosLatest.state === 'running'">Run Chaos Test</button>
+              <button class="btn-secondary" @click="stopChaos" x-show="chaosLatest && chaosLatest.state === 'running'">Stop</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Progress Card & Report Card -->
+        <div>
+          <div class="card" x-show="chaosLatest">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="card-label">Chaos Run Report</div>
+              <span class="badge" :class="chaosLatest && chaosLatest.report_card && chaosLatest.report_card.verdict === 'PASS' ? 'badge-ok' : 'badge-bad'" style="font-size:16px; padding:6px 12px;" x-text="chaosLatest && chaosLatest.report_card ? chaosLatest.report_card.verdict : chaosLatest.state.toUpperCase()"></span>
+            </div>
+
+            <div x-show="chaosLatest && chaosLatest.state === 'running'" style="display:flex; flex-direction:column; gap:8px;">
+              <div>Enqueued: <span class="num" x-text="chaosLatest.enqueued + ' / ' + chaosLatest.total_jobs"></span></div>
+              <div>Acknowledged: <span class="num" x-text="chaosLatest.acknowledged"></span></div>
+              <div>Kills sent: <span class="num" x-text="chaosLatest.kills_sent"></span></div>
+              <div>Freezes sent: <span class="num" x-text="chaosLatest.freezes_sent"></span></div>
+            </div>
+
+            <div x-show="chaosLatest && chaosLatest.report_card" style="display:flex; flex-direction:column; gap:10px;">
+              <div x-show="chaosLatest.report_card && chaosLatest.report_card.first_failure" style="color:var(--bad); font-weight:600;" x-text="'Failure Reason: ' + chaosLatest.report_card.first_failure"></div>
+              <table class="data-table">
+                <tbody>
+                  <tr><td>Acknowledged</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.acknowledged : 0"></td></tr>
+                  <tr><td>Succeeded</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.succeeded : 0"></td></tr>
+                  <tr><td>Dead</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.dead : 0"></td></tr>
+                  <tr><td>Duplicate effects</td><td class="num" style="font-weight:700;" x-text="chaosLatest.report_card ? chaosLatest.report_card.duplicate_effects : 0"></td></tr>
+                  <tr><td>Stale writes rejected</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.stale_writes_rejected : 0"></td></tr>
+                  <tr><td>Lease expiries</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.lease_expiries : 0"></td></tr>
+                  <tr><td>Quarantined jobs</td><td class="num" x-text="chaosLatest.report_card ? chaosLatest.report_card.quarantined_jobs : 0"></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page: Insights -->
+    <div class="page-container" x-show="activeTab === 'insights'">
+      <!-- Section 1: Retry Intelligence -->
+      <div class="card" style="padding:0;">
+        <div style="padding:16px; border-bottom:1px solid var(--rule);">
+          <div class="card-label">Learned Retry Intelligence (Beta Posterior)</div>
+          <div style="font-size:12px; color:var(--ink-2); margin-top:4px;">
+            Posterior = (1 + successes) / (2 + successes + failures). Below 0.15 after 8 observations, retries stop early.
+          </div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Job Type</th>
+              <th>Error Fingerprint</th>
+              <th>Observed (n)</th>
+              <th>P(success on retry)</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="r in insightsData.retry_stats" :key="r.job_type + r.fp">
+              <tr>
+                <td x-text="r.job_type"></td>
+                <td class="num" x-text="r.fp"></td>
+                <td class="num" x-text="r.n"></td>
+                <td class="num" x-text="r.p_success"></td>
+                <td>
+                  <span class="badge" :class="r.verdict === 'learned-permanent' ? 'badge-bad' : 'badge-ok'" x-text="r.verdict"></span>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!insightsData.retry_stats.length">
+              <td colspan="5" style="text-align:center; padding:16px; color:var(--ink-3);">No retry observations yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Section 2: Circuit Breakers -->
+      <div class="card">
+        <div class="card-label">Circuit Breakers</div>
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <template x-for="b in insightsData.breakers" :key="b.job_type">
+            <div style="border:1px solid var(--rule-strong); padding:12px; border-radius:3px; min-width:200px;">
+              <div style="font-weight:600;" x-text="b.job_type"></div>
+              <div style="margin-top:6px;">
+                <span class="badge" :class="b.state === 'open' ? 'badge-bad' : 'badge-ok'" x-text="b.state === 'open' ? '✕ OPEN (' + b.open_for_s + 's)' : '● CLOSED'"></span>
+              </div>
+              <div style="font-size:11px; color:var(--ink-2); margin-top:6px;">Opened: <span class="num" x-text="b.opened_count"></span> times</div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Section 3: Forecast & Recommendation -->
+      <div class="card">
+        <div class="card-label">Arrival Forecast & Capacity Planning</div>
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin:10px 0;">
+          <div>
+            <div style="font-size:12px; color:var(--ink-2);">Arrival rate forecast (λ̂)</div>
+            <div class="num" style="font-size:24px; font-weight:600;" x-text="insightsData.recommendation ? insightsData.recommendation.forecast_arrival_rate + ' jobs/s' : '0'"></div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--ink-2);">Ready Backlog</div>
+            <div class="num" style="font-size:24px; font-weight:600;" x-text="insightsData.recommendation ? insightsData.recommendation.backlog : 0"></div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--ink-2);">Recommended Workers</div>
+            <div class="num" style="font-size:24px; font-weight:600; color:var(--ember);" x-text="insightsData.recommendation ? insightsData.recommendation.recommended_workers : 3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Job Detail Drawer (04-pages §3.3) -->
+  <div class="drawer-overlay" x-show="jobDrawerOpen" @click.self="jobDrawerOpen = false">
+    <div class="drawer" x-show="jobDrawerOpen">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="card-label">Job Details</span>
+        <button class="btn-secondary btn-sm" @click="jobDrawerOpen = false">Close</button>
+      </div>
+
+      <template x-if="selectedJob">
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <div style="font-size:11px; color:var(--ink-3);">ID</div>
+            <div class="num" style="font-weight:700;" x-text="selectedJob.job.id"></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--ink-3);">Type & Status</div>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+              <span style="font-weight:600;" x-text="selectedJob.job.type"></span>
+              <span class="badge" :class="{ 'badge-ok': selectedJob.job.status === 'succeeded', 'badge-bad': selectedJob.job.status === 'dead' }" x-text="selectedJob.job.status"></span>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div>
+              <div style="font-size:11px; color:var(--ink-3);">Attempts</div>
+              <div class="num" x-text="selectedJob.job.attempts + ' / ' + selectedJob.job.max_attempts"></div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--ink-3);">Fence Token</div>
+              <div class="num" x-text="selectedJob.job.fence"></div>
+            </div>
+          </div>
+
+          <div class="card-label" style="margin-top:12px;">Event Timeline</div>
+          <div class="console-box" style="max-height:260px;">
+            <template x-for="ev in selectedJob.events" :key="ev.id">
+              <div class="console-line">
+                <span class="num" style="width:70px;" x-text="ev.at.substring(11,19)"></span>
+                <span style="font-weight:600;" x-text="ev.event"></span>
+                <span class="num" style="color:var(--sidebar-muted);" x-text="ev.worker || ''"></span>
+              </div>
+            </template>
+          </div>
+
+          <div x-show="selectedJob.job.status === 'dead'">
+            <button class="btn-primary" @click="replayJob(selectedJob.job.id)">Replay this job</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="toast" x-text="t.text"></div>
+    </template>
+  </div>
+
+</body>
+</html>

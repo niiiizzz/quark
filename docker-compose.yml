@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: lazarus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lazarus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lazarus"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    container_name: lazarus-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lazarus
+      LEASE_SECONDS: "6"
+      HEARTBEAT_SECONDS: "2"
+      WORKER_CONCURRENCY: "4"
+      POLL_INTERVAL: "0.3"
+      MAX_ATTEMPTS: "5"
+      BACKOFF_BASE: "1.5"
+      BACKOFF_CAP: "20.0"
+      POISON_THRESHOLD: "3"
+      REAPER_INTERVAL: "2.0"
+      PORT: "8000"
+      HOST: "0.0.0.0"
+      LAZARUS_ALLOW_RESET: "1"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
