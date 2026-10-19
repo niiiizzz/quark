@@ -41,11 +41,13 @@ document.addEventListener('alpine:init', () => {
       });
 
       this.pollOverview();
-      setInterval(() => this.pollOverview(), 1000);
+      setInterval(() => {
+        this.pollOverview();
+        if (this.activeTab === 'chaos') this.fetchChaosStatus();
+      }, 1000);
       setInterval(() => {
         if (this.activeTab === 'jobs' || this.activeTab === 'dlq') this.fetchJobs();
         if (this.activeTab === 'insights') this.fetchInsights();
-        if (this.activeTab === 'chaos') this.fetchChaosStatus();
       }, 2000);
     },
 
@@ -54,6 +56,7 @@ document.addEventListener('alpine:init', () => {
       window.location.hash = tab;
       if (tab === 'jobs' || tab === 'dlq') this.fetchJobs();
       if (tab === 'insights') this.fetchInsights();
+      if (tab === 'chaos') this.fetchChaosStatus();
     },
 
     toast(msg) {

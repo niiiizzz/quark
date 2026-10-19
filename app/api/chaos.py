@@ -25,6 +25,9 @@ from app.invariants import evaluate_invariants
 
 class ChaosRunState:
     def __init__(self):
+        self.reset()
+
+    def reset(self):
         self.run_id = str(uuid.uuid4())
         self.state = "idle"  # idle | running | draining | complete
         self.total_jobs = 0
@@ -50,7 +53,7 @@ async def run_chaos_orchestration(
     job_mix: Optional[Dict[str, int]] = None,
 ):
     global active_chaos_run
-    active_chaos_run = ChaosRunState()
+    active_chaos_run.reset()
     active_chaos_run.state = "running"
     active_chaos_run.total_jobs = jobs_count
     active_chaos_run.start_time = time.monotonic()
@@ -72,8 +75,11 @@ async def run_chaos_orchestration(
 
     tenants = [f"tenant-{i+1}" for i in range(tenants_count)]
 
+    load_done = False
+
     # Load generator task
     async def load_loop():
+        nonlocal load_done
         interval = 1.0 / max(1, jobs_per_sec)
         for i in range(jobs_count):
             if active_chaos_run._stop_requested:
@@ -104,13 +110,16 @@ async def run_chaos_orchestration(
                 pass
 
             await asyncio.sleep(interval)
+        load_done = True
 
-    # Kill loop: every kill_every_s kill a random healthy worker with >= 1 in-flight
+    # Kill loop: runs while load is actively generating
     async def kill_loop():
         if kill_every_s <= 0:
             return
-        while active_chaos_run.state == "running" and not active_chaos_run._stop_requested:
+        while not load_done and not active_chaos_run._stop_requested:
             await asyncio.sleep(kill_every_s)
+            if load_done or active_chaos_run._stop_requested:
+                break
             try:
                 async with get_connection() as conn:
                     async with conn.cursor(row_factory=dict_row) as cur:
@@ -126,12 +135,14 @@ async def run_chaos_orchestration(
             except Exception:
                 pass
 
-    # Freeze loop: random freeze every ~12s
+    # Freeze loop: random freeze every ~12s while load is generating
     async def freeze_loop():
         if not freeze_enabled:
             return
-        while active_chaos_run.state == "running" and not active_chaos_run._stop_requested:
+        while not load_done and not active_chaos_run._stop_requested:
             await asyncio.sleep(random.uniform(10.0, 14.0))
+            if load_done or active_chaos_run._stop_requested:
+                break
             try:
                 async with get_connection() as conn:
                     async with conn.cursor(row_factory=dict_row) as cur:

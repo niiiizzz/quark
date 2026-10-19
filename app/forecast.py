@@ -78,7 +78,7 @@ async def compute_recommendation(conn: psycopg.AsyncConnection) -> Dict:
         # 2) Mean duration (service time s in seconds)
         await cur.execute(SQL_MEAN_DURATION)
         dur_row = await cur.fetchone()
-        mean_dur_ms = dur_row["mean_duration"] or 500.0
+        mean_dur_ms = float(dur_row["mean_duration"] if dur_row and dur_row["mean_duration"] is not None else 500.0)
         service_time_s = mean_dur_ms / 1000.0
 
         # 3) Backlog

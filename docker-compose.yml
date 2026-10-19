@@ -38,6 +38,9 @@ services:
       LAZARUS_ALLOW_RESET: "1"
     ports:
       - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
     depends_on:
       postgres:
         condition: service_healthy
