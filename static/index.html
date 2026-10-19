@@ -245,6 +245,19 @@
         </div>
       </div>
 
+      <!-- Jobs Table Filters & Toolbar -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-size:12px; font-weight:600; color:var(--ink-2); margin-right:4px;">Filter:</span>
+          <button class="btn-sm" :class="jobFilterStatus === '' ? 'btn-primary' : 'btn-secondary'" @click="jobFilterStatus = ''; fetchJobs()">All</button>
+          <button class="btn-sm" :class="jobFilterStatus === 'queued' ? 'btn-primary' : 'btn-secondary'" @click="jobFilterStatus = 'queued'; fetchJobs()">Queued</button>
+          <button class="btn-sm" :class="jobFilterStatus === 'running' ? 'btn-primary' : 'btn-secondary'" @click="jobFilterStatus = 'running'; fetchJobs()">Running</button>
+          <button class="btn-sm" :class="jobFilterStatus === 'succeeded' ? 'btn-primary' : 'btn-secondary'" @click="jobFilterStatus = 'succeeded'; fetchJobs()">Succeeded</button>
+          <button class="btn-sm" :class="jobFilterStatus === 'dead' ? 'btn-primary' : 'btn-secondary'" @click="jobFilterStatus = 'dead'; fetchJobs()">Dead</button>
+        </div>
+        <button class="btn-secondary btn-sm" @click="fetchJobs()">↻ Refresh</button>
+      </div>
+
       <!-- Jobs Table -->
       <div class="card" style="padding:0;">
         <table class="data-table">
@@ -395,13 +408,18 @@
 
         <!-- Right: Progress Card & Report Card -->
         <div>
-          <div class="card" x-show="chaosLatest">
+          <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <div class="card-label">Chaos Run Report</div>
-              <span class="badge" :class="chaosLatest && chaosLatest.report_card && chaosLatest.report_card.verdict === 'PASS' ? 'badge-ok' : 'badge-bad'" style="font-size:16px; padding:6px 12px;" x-text="chaosLatest && chaosLatest.report_card ? chaosLatest.report_card.verdict : chaosLatest.state.toUpperCase()"></span>
+              <span class="badge" :class="chaosLatest && chaosLatest.report_card && chaosLatest.report_card.verdict === 'PASS' ? 'badge-ok' : (chaosLatest && chaosLatest.report_card && chaosLatest.report_card.verdict === 'FAIL' ? 'badge-bad' : 'badge-cold')" style="font-size:14px; padding:4px 10px;" x-text="chaosLatest && chaosLatest.report_card ? chaosLatest.report_card.verdict : (chaosLatest ? chaosLatest.state.toUpperCase() : 'IDLE')"></span>
             </div>
 
-            <div x-show="chaosLatest && chaosLatest.state === 'running'" style="display:flex; flex-direction:column; gap:8px;">
+            <div x-show="!chaosLatest || chaosLatest.state === 'idle'" style="padding:20px 0; color:var(--ink-3); text-align:center;">
+              Click <strong>Run Chaos Test</strong> to inject synthetic traffic, kills, and freezes. Real-time test progress and final report card will appear here.
+            </div>
+
+            <div x-show="chaosLatest && (chaosLatest.state === 'running' || chaosLatest.state === 'draining')" style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+              <div style="font-size:12px; font-weight:600; color:var(--ember);" x-text="chaosLatest.state === 'draining' ? '⚡ Draining: waiting for in-flight tasks to finish...' : '⚡ Running load & chaos injections...'"></div>
               <div>Enqueued: <span class="num" x-text="chaosLatest.enqueued + ' / ' + chaosLatest.total_jobs"></span></div>
               <div>Acknowledged: <span class="num" x-text="chaosLatest.acknowledged"></span></div>
               <div>Kills sent: <span class="num" x-text="chaosLatest.kills_sent"></span></div>
