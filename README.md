@@ -205,7 +205,7 @@ sequenceDiagram
     W->>D: batch heartbeat every 2s
   end
 
-  W->>D: BEGIN; INSERT ledger; UPDATE jobs WHERE fence = f; COMMIT
+  W->>D: Atomic commit: INSERT ledger and UPDATE jobs WHERE fence = f
   D-->>W: rowcount 1 = success, rowcount 0 = ROLLBACK (stale fence)
 ```
 
@@ -260,15 +260,15 @@ sequenceDiagram
 
   R->>D: lease expired, requeue J (crash_count++)
   W2->>D: CLAIM J (fence = 2)
-  W2->>D: BEGIN; INSERT ledger; UPDATE WHERE fence = 2; COMMIT OK
+  W2->>D: Atomic commit: INSERT ledger and UPDATE WHERE fence = 2 (COMMIT OK)
 
   Z->>Z: wakes, handler returns
 
   alt Fencing ON (safe)
-    Z->>D: BEGIN; INSERT ledger; UPDATE WHERE fence = 1
+    Z->>D: Atomic commit attempt: INSERT ledger and UPDATE WHERE fence = 1
     D-->>Z: 0 rows, ROLLBACK, stale_writes_rejected++
   else Fencing OFF (unsafe demo)
-    Z->>D: BEGIN; INSERT ledger; UPDATE WHERE id = J; COMMIT
+    Z->>D: Unsafe commit: INSERT ledger and UPDATE WHERE id = J (no fence check)
     Note over D: two ledger rows for job J, invariants I2 and I3 turn RED
   end
 ```
@@ -350,7 +350,7 @@ sequenceDiagram
   Note over W,D: CLAIM skips type flaky_webhook while open
 
   U->>D: outage off
-  Note over B: after cooldown, probe jobs flow; success keeps it closed
+  Note over B: after cooldown, probe jobs flow and success keeps it closed
 ```
 
 Breaker state lives in the `breakers` table so all workers respect it without IPC.
