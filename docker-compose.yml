@@ -23,7 +23,7 @@ services:
     container_name: lazarus-app
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lazarus
+      DATABASE_URL: ${DATABASE_URL}
       LEASE_SECONDS: "6"
       HEARTBEAT_SECONDS: "2"
       WORKER_CONCURRENCY: "4"

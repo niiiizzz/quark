@@ -3,7 +3,7 @@
 -- Schema Definition (PRD Section 6 verbatim contract)
 -- ==============================================================================
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+--CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS jobs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

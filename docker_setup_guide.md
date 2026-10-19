@@ -75,7 +75,7 @@ Your project has **two containers** defined in `docker-compose.yml`:
 
 ```powershell
 # The project skeleton is here:
-cd "c:\Users\Noothan\Desktop\Lazarus\Project\quark"
+cd "c:Project"
 ```
 
 ### Step 2: Build the Docker image (one-time, ~2 min)
