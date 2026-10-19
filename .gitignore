@@ -11,3 +11,5 @@ build/
 .DS_Store
 pg_data/
 pgsql/
+doc/
+AGENTS.md
